@@ -118,13 +118,22 @@ def check_wandb(online):
         return
     record("import wandb", True, f"wandb {wandb.__version__}")
 
+    entity, project = None, "rlpd-lab"
+    try:
+        import yaml
+        with open("config.yaml", encoding="utf-8") as f:
+            wb = (yaml.safe_load(f) or {}).get("wandb", {})
+        entity, project = wb.get("entity"), wb.get("project", project)
+    except Exception:
+        pass
+
     mode = "online" if online else "offline"
     try:
-        run = wandb.init(project="rlpd-lab", name="NR1_Hopper_smoketest_seed0", mode=mode,
-                         config={"purpose": "smoke_test"})
+        run = wandb.init(entity=entity, project=project, name="NR1_Hopper_test_seed0",
+                         mode=mode, config={"purpose": "pipeline_check"})
         wandb.log({"smoke/dummy_metric": 1.0})
         run.finish()
-        record("wandb init+log", True, f"mode={mode}")
+        record("wandb init+log", True, f"mode={mode} -> {entity}/{project}")
     except Exception as e:
         record("wandb init+log", False, repr(e))
 

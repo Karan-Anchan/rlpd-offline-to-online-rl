@@ -6,8 +6,8 @@ experiment:
   seed: 0
 
 wandb:
-  entity: null           # shared team
-  project: offline-to-online-rl
+  entity: fryan-nr       # shared team
+  project: NR1
   mode: online           # use "offline" for local tests
 
 env:
