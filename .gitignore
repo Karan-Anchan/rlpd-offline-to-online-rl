@@ -1,0 +1,28 @@
+# Python / venv
+.venv/
+__pycache__/
+*.py[cod]
+
+# RL artifacts (large / regenerable)
+wandb/
+runs/
+outputs/
+checkpoints/
+*.ckpt
+*.pt
+*.pth
+data/
+datasets/
+*.mp4
+
+# Local-only materials (notes, reference papers, slides)
+notes/
+
+# Logs
+*_log.txt
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

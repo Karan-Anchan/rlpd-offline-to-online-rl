@@ -1,0 +1,44 @@
+# Experiment config. Run name: NR1_[Env]_[Setting]_[Seed].
+
+experiment:
+  group_id: NR1
+  setting: RLPD          # RLPD | SACfD | IQL | ablation-<name>
+  seed: 0
+
+wandb:
+  entity: null           # shared team
+  project: offline-to-online-rl
+  mode: online           # use "offline" for local tests
+
+env:
+  id: Hopper-v5
+
+dataset:
+  minari_id: mujoco/hopper/expert-v0
+
+# RLPD core (paper Table 1)
+algo:
+  gamma: 0.99
+  learning_rate: 3.0e-4
+  batch_online: 128
+  batch_offline: 128
+  symmetric_sampling_ratio: 0.5
+  ensemble_size: 10
+  critic_ema_rho: 0.005
+  utd: 20
+  hidden_width: 256
+  layernorm: true
+  init_entropy_temp: 1.0
+  target_entropy_scale: -0.5
+
+# Per-environment knobs (paper Table 2), locomotion defaults
+env_specific:
+  cdq: true
+  entropy_backups: true
+  num_layers: 2
+
+training:
+  total_env_steps: 250000
+  start_steps: 5000
+  eval_every_steps: 5000
+  eval_episodes: 10

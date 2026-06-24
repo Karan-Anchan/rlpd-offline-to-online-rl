@@ -1,0 +1,13 @@
+# Project dependencies.
+# PyTorch is installed separately (Blackwell GPUs need the CUDA 12.8 index), see setup.ps1:
+#     pip install torch --index-url https://download.pytorch.org/whl/cu128
+
+gymnasium[mujoco]>=1.0
+mujoco>=3.1
+minari[hf,hdf5]>=0.5
+numpy>=1.26
+scipy>=1.11
+wandb>=0.17
+tensorboard>=2.16
+tqdm>=4.66
+pyyaml>=6.0
