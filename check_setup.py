@@ -1,8 +1,8 @@
-"""Pipeline smoke test: GPU, MuJoCo env, Minari dataset, and W&B. Does not train.
+"""Pipeline check: GPU, MuJoCo env, Minari dataset, and W&B. Does not train.
 
-    python smoke_test.py
-    python smoke_test.py --wandb-online
-    python smoke_test.py --skip-minari
+    python check_setup.py
+    python check_setup.py --wandb-online
+    python check_setup.py --skip-minari
 """
 
 import argparse
@@ -131,7 +131,7 @@ def check_wandb(online):
     try:
         run = wandb.init(entity=entity, project=project, name="NR1_Hopper_test_seed0",
                          mode=mode, config={"purpose": "pipeline_check"})
-        wandb.log({"smoke/dummy_metric": 1.0})
+        wandb.log({"check/dummy_metric": 1.0})
         run.finish()
         record("wandb init+log", True, f"mode={mode} -> {entity}/{project}")
     except Exception as e:

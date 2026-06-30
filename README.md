@@ -23,18 +23,18 @@ Requires Python 3.11+ and an NVIDIA GPU with a recent driver (CUDA 12.8+ for RTX
 ./setup.ps1
 ```
 
-Creates `.venv`, installs PyTorch + `requirements.txt`, and runs the smoke test. PyTorch is
+Creates `.venv`, installs PyTorch + `requirements.txt`, and runs the setup check. PyTorch is
 installed separately from the CUDA 12.8 index (see `setup.ps1`). Reactivate later with
 `.\.venv\Scripts\Activate.ps1`.
 
-## Smoke test
+## Setup check
 
 Verifies GPU, MuJoCo env, Minari dataset, and logging without training:
 
 ```powershell
-python smoke_test.py
-python smoke_test.py --wandb-online
-python smoke_test.py --skip-minari
+python check_setup.py
+python check_setup.py --wandb-online
+python check_setup.py --skip-minari
 ```
 
 ## Config and logging
@@ -53,12 +53,34 @@ Then set `wandb.entity` and `wandb.project` in `config.yaml`.
 
 ## Layout
 
+Everyone codes against the frozen interfaces in `rlpd/interfaces.py` (the batch
+contract + `Buffer`/`Agent` protocols) and the stubs in `rlpd/stubs.py`, so the
+three workstreams build in parallel and snap together without editing shared
+files. Ownership:
+
 ```
-config.yaml        hyperparameters
-requirements.txt   dependencies (PyTorch installed separately, see setup.ps1)
-setup.ps1          environment bootstrap
-smoke_test.py      pipeline verification
-wandb_logger.py    logging
+rlpd/
+  interfaces.py     frozen batch contract + protocols   shared (review by all)
+  stubs.py          MockBuffer, StubAgent               shared
+  networks.py       Actor, EnsembleCritic               algorithm
+  sac.py            RLPD/SAC agent                       algorithm
+  replay_buffer.py  online buffer + symmetric sampler    data/env/eval
+  dataset.py        Minari -> offline buffer             data/env/eval
+  envs.py           env creation + wrappers              data/env/eval
+  evaluate.py       eval loop                            data/env/eval
+train.py            training loop (wires interfaces)     infra
+run.py              CLI launcher (config + overrides)    infra
+wandb_logger.py     logging                              infra
+config.yaml         hyperparameters
+requirements.txt    dependencies (PyTorch separate, see setup.ps1)
+setup.ps1           environment bootstrap
+check_setup.py      pipeline verification
+```
+
+Wiring check (no GPU or dataset needed):
+
+```powershell
+python run.py --stub --steps 60 --wandb-offline --device cpu
 ```
 
 ## License
