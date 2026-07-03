@@ -11,8 +11,8 @@ from typing import Optional
 
 import yaml
 
-# Reference scores for normalization: 100 * (score - min) / (max - min).
-# Verify against Minari metadata before reporting final numbers.
+# D4RL reference scores for 100 * (score - min) / (max - min); min=random, max=expert.
+# Minari carries no reference scores; the v5/TQC expert datasets exceed 100 (~119-149%).
 REFERENCE_SCORES = {
     "HalfCheetah": (-280.178953, 12135.0),
     "Hopper": (-20.272305, 3234.3),
