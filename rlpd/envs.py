@@ -1,8 +1,4 @@
-"""Environment creation + wrappers.   OWNER: Member 2.
-
-One place to make envs so wrapper changes (especially for the Humanoid port) are
-documented in a single file. Returns standard Gymnasium MuJoCo envs for now.
-"""
+"""Environment creation + wrappers."""
 
 from __future__ import annotations
 
@@ -20,5 +16,4 @@ def make_env(env_id: str, seed: Optional[int] = None) -> gym.Env:
 
 
 def env_dims(env: gym.Env) -> Tuple[int, int]:
-    """Return (obs_dim, act_dim) for a flat Box obs/action env."""
     return env.observation_space.shape[0], env.action_space.shape[0]

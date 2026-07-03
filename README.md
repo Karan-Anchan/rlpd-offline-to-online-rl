@@ -53,24 +53,22 @@ Then set `wandb.entity` and `wandb.project` in `config.yaml`.
 
 ## Layout
 
-Everyone codes against the frozen interfaces in `rlpd/interfaces.py` (the batch
-contract + `Buffer`/`Agent` protocols) and the stubs in `rlpd/stubs.py`, so the
-three workstreams build in parallel and snap together without editing shared
-files. Ownership:
+Modules code against the frozen interfaces in `rlpd/interfaces.py` (the batch
+contract + `Buffer`/`Agent` protocols) and the stubs in `rlpd/stubs.py`.
 
 ```
 rlpd/
-  interfaces.py     frozen batch contract + protocols   shared (review by all)
-  stubs.py          MockBuffer, StubAgent               shared
-  networks.py       Actor, EnsembleCritic               algorithm
-  sac.py            RLPD/SAC agent                       algorithm
-  replay_buffer.py  online buffer + symmetric sampler    data/env/eval
-  dataset.py        Minari -> offline buffer             data/env/eval
-  envs.py           env creation + wrappers              data/env/eval
-  evaluate.py       eval loop                            data/env/eval
-train.py            training loop (wires interfaces)     infra
-run.py              CLI launcher (config + overrides)    infra
-wandb_logger.py     logging                              infra
+  interfaces.py     batch contract + protocols
+  stubs.py          MockBuffer, StubAgent
+  networks.py       Actor, EnsembleCritic
+  sac.py            RLPD/SAC agent
+  replay_buffer.py  online buffer + symmetric sampler
+  dataset.py        Minari -> offline buffer
+  envs.py           env creation + wrappers
+  evaluate.py       eval loop
+train.py            training loop (wires interfaces)
+run.py              CLI launcher (config + overrides)
+wandb_logger.py     logging
 config.yaml         hyperparameters
 requirements.txt    dependencies (PyTorch separate, see setup.ps1)
 setup.ps1           environment bootstrap

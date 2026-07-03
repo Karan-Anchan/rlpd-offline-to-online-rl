@@ -1,10 +1,4 @@
-"""Evaluation loop + normalized score.   OWNER: Member 2.
-
-Deterministic rollout of the agent; returns mean/std raw return. Normalization
-against reference scores lives in wandb_logger.normalized_score so the logger
-owns the reporting; this module stays policy-agnostic (works with any Agent,
-including a random policy for sanity checks).
-"""
+"""Deterministic evaluation rollout; returns (mean, std) raw return."""
 
 from __future__ import annotations
 

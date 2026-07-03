@@ -1,4 +1,4 @@
-"""Data-pipeline tests (M2): the batch contract, symmetric sampling, and — gated
+"""Data-pipeline tests: the batch contract, symmetric sampling, and — gated
 behind RLPD_RUN_SLOW=1 — the real Hopper Minari load + random-policy eval.
 
     pytest                       # fast contract tests only
@@ -69,25 +69,38 @@ def test_ring_buffer_wraps_and_caps_size():
     assert buf.ptr == 25 % 10
 
 
-# ---- slow: real Hopper dataset + random eval (the M2 verification) ----
+def test_dataset_registry_covers_reproduction_tasks():
+    from rlpd.dataset import DATASET_IDS, dataset_id_for_env
+
+    assert set(DATASET_IDS) == {"Hopper-v5", "HalfCheetah-v5", "Walker2d-v5"}
+    assert dataset_id_for_env("Walker2d-v5") == "mujoco/walker2d/expert-v0"
+    with pytest.raises(KeyError):
+        dataset_id_for_env("Ant-v5")
+
+
+# ---- slow: real Minari load + random eval, per reproduction task ----
 
 @slow
-def test_hopper_offline_load_and_random_eval():
-    minari = pytest.importorskip("minari")
+@pytest.mark.parametrize("env_id, dims", [
+    ("Hopper-v5", (11, 3)),
+    ("HalfCheetah-v5", (17, 6)),
+    ("Walker2d-v5", (17, 6)),
+])
+def test_offline_load_and_random_eval(env_id, dims):
+    pytest.importorskip("minari")
     pytest.importorskip("gymnasium")
 
-    from wandb_logger import load_config, normalized_score
-    from rlpd.dataset import load_offline_buffer
+    from wandb_logger import normalized_score
+    from rlpd.dataset import load_offline_buffer_for_env
     from rlpd.envs import make_env, env_dims
     from rlpd.evaluate import evaluate
     from rlpd.stubs import StubAgent
 
-    cfg = load_config("config.yaml")
-    env = make_env(cfg["env"]["id"], seed=0)
+    env = make_env(env_id, seed=0)
     obs_dim, act_dim = env_dims(env)
-    assert (obs_dim, act_dim) == (OBS_DIM, ACT_DIM)
+    assert (obs_dim, act_dim) == dims
 
-    offline = load_offline_buffer(cfg["dataset"]["minari_id"], obs_dim, act_dim, "cpu")
+    offline = load_offline_buffer_for_env(env_id, obs_dim, act_dim, "cpu")
     assert offline.size == offline.capacity > 0
 
     # termination-only: done must be sparse (truncations would spike this).
@@ -98,6 +111,6 @@ def test_hopper_offline_load_and_random_eval():
 
     # random policy must land near the 0-end of the normalized curve, nowhere near expert (100).
     mean_ret, _ = evaluate(StubAgent(act_dim), env, episodes=10)
-    norm = normalized_score(cfg["env"]["id"], mean_ret)
+    norm = normalized_score(env_id, mean_ret)
     env.close()
     assert norm is not None and norm < 25, f"random policy normalized={norm}, expected ~0"

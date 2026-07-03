@@ -1,4 +1,4 @@
-"""CLI launcher: read config.yaml, apply overrides, start training.   OWNER: Member 3.
+"""CLI launcher: read config.yaml, apply overrides, start training.
 
     python run.py                                  # train from config.yaml
     python run.py --set env.id=Walker2d-v5 experiment.seed=1

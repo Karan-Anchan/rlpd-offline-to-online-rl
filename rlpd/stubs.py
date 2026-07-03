@@ -1,9 +1,4 @@
-"""Trivial stubs so each workstream can run before the real pieces exist.
-
-`MockBuffer` lets Member 1 develop the agent with no data dependency; `StubAgent`
-lets Member 3 build and run the training loop with no algorithm dependency. Both
-honour the frozen interfaces. Delete once the real versions are integrated.
-"""
+"""Interface-honouring stubs so each part can run before the others exist."""
 
 from __future__ import annotations
 
@@ -16,8 +11,6 @@ from .interfaces import Batch
 
 
 class MockBuffer:
-    """Returns random batches in the contract shape. No real storage."""
-
     def __init__(self, obs_dim: int, act_dim: int, device: str = "cpu"):
         self.obs_dim, self.act_dim, self.device = obs_dim, act_dim, device
 
@@ -36,8 +29,6 @@ class MockBuffer:
 
 
 class StubAgent:
-    """Random policy, no-op update. Drop-in for the real agent during wiring."""
-
     def __init__(self, act_dim: int):
         self.act_dim = act_dim
 

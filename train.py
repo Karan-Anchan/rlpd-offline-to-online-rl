@@ -1,14 +1,4 @@
-"""Training loop — wires env + buffers + agent + logging.   OWNER: Member 3 (with M1).
-
-This is the integration point. It knows only the frozen interfaces, so it runs
-today against the stubs and keeps running unchanged as the real pieces land.
-
-Two swap points, both marked SWAP below:
-  * the agent     : StubAgent  -> rlpd.sac.RLPDAgent
-  * the offline buffer: MockBuffer -> rlpd.dataset.load_offline_buffer
-
-Run via run.py.
-"""
+"""Training loop: wires env, buffers, agent, and logging via the frozen interfaces."""
 
 from __future__ import annotations
 
@@ -22,7 +12,6 @@ from wandb_logger import WandbLogger
 def build_agent(cfg: dict, obs_dim: int, act_dim: int, device: str, use_stubs: bool):
     if use_stubs:
         return StubAgent(act_dim)
-    # SWAP (Member 1): from rlpd.sac import RLPDAgent; return RLPDAgent(obs_dim, act_dim, cfg, device)
     from rlpd.sac import RLPDAgent
     return RLPDAgent(obs_dim, act_dim, cfg, device)
 
@@ -30,9 +19,9 @@ def build_agent(cfg: dict, obs_dim: int, act_dim: int, device: str, use_stubs: b
 def build_offline_buffer(cfg: dict, obs_dim: int, act_dim: int, device: str, use_stubs: bool):
     if use_stubs:
         return MockBuffer(obs_dim, act_dim, device)
-    # SWAP (Member 2's loader): real Minari offline data.
-    from rlpd.dataset import load_offline_buffer
-    return load_offline_buffer(cfg["dataset"]["minari_id"], obs_dim, act_dim, device)
+    from rlpd.dataset import load_offline_buffer, dataset_id_for_env
+    dataset_id = cfg.get("dataset", {}).get("minari_id") or dataset_id_for_env(cfg["env"]["id"])
+    return load_offline_buffer(dataset_id, obs_dim, act_dim, device)
 
 
 def train(cfg: dict, device: str = "cuda", use_stubs: bool = False,

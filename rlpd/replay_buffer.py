@@ -1,9 +1,4 @@
-"""Online replay buffer + symmetric sampler.   OWNER: Member 2.
-
-Implements the `Buffer` protocol. `sample()` returns the frozen batch contract:
-float32 tensors of shape (N, obs_dim)/(N, act_dim)/(N, 1) on `device`, with
-`done` carrying termination only (the loader enforces this on the offline side).
-"""
+"""Online replay buffer + symmetric sampler."""
 
 from __future__ import annotations
 
@@ -14,8 +9,6 @@ from .interfaces import Batch
 
 
 class ReplayBuffer:
-    """Fixed-capacity ring buffer of transitions."""
-
     def __init__(self, capacity: int, obs_dim: int, act_dim: int, device: str = "cpu"):
         self.obs = np.zeros((capacity, obs_dim), np.float32)
         self.action = np.zeros((capacity, act_dim), np.float32)
@@ -49,13 +42,7 @@ class ReplayBuffer:
 
 def symmetric_sample(online: ReplayBuffer, offline: ReplayBuffer, batch_size: int,
                      ratio: float = 0.5) -> Batch:
-    """Concatenate `ratio` of the batch from online and the rest from offline.
-
-    `ratio` is the online fraction (paper default 0.5 = the 50/50 split). It is
-    exposed so the symmetric-sampling ablation can sweep it without touching the
-    training loop; the loop calls this with the configured ratio.
-    """
+    """Batch of `ratio` online rows + the rest offline (ratio=0.5 is the 50/50 split)."""
     n_online = round(batch_size * ratio)
-    n_offline = batch_size - n_online
-    a, b = online.sample(n_online), offline.sample(n_offline)
+    a, b = online.sample(n_online), offline.sample(batch_size - n_online)
     return {k: torch.cat([a[k], b[k]], dim=0) for k in a}
