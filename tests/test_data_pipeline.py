@@ -109,8 +109,9 @@ def test_offline_load_and_random_eval(env_id, dims):
 
     check_batch(offline.sample(256), obs_dim, act_dim)
 
-    # random policy must land near the 0-end of the normalized curve, nowhere near expert (100).
-    mean_ret, _ = evaluate(StubAgent(act_dim), env, episodes=10)
+    # eval sanity: a random policy scores ~0 normalized on every task.
+    mean_ret, std_ret = evaluate(StubAgent(act_dim), env, episodes=10)
+    assert np.isfinite(mean_ret) and std_ret >= 0.0
     norm = normalized_score(env_id, mean_ret)
     env.close()
-    assert norm is not None and norm < 25, f"random policy normalized={norm}, expected ~0"
+    assert norm is not None and -5.0 < norm < 10.0, f"random normalized={norm}, expected ~0"
