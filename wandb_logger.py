@@ -62,7 +62,9 @@ def _package_versions() -> dict:
 
 
 class WandbLogger:
-    def __init__(self, cfg: dict, extra_config: Optional[dict] = None):
+    def __init__(self, cfg: dict, extra_config: Optional[dict] = None,
+                 run_id: Optional[str] = None):
+        """`run_id` continues an existing W&B run (checkpoint resume)."""
         import wandb
 
         self.wandb = wandb
@@ -87,7 +89,10 @@ class WandbLogger:
             job_type=cfg["experiment"]["setting"],
             mode=wb.get("mode", "online"),
             config=config,
+            id=run_id,
+            resume="must" if run_id else None,
         )
+        self.run_id = self.run.id
 
         # env_step is the x-axis for all curves.
         wandb.define_metric("env_step")

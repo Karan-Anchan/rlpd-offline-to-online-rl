@@ -42,3 +42,5 @@ training:
   start_steps: 5000
   eval_every_steps: 5000
   eval_episodes: 10
+  checkpoint_every_steps: 10000  # 0 disables; resume with `run.py --resume`
+  checkpoint_dir: checkpoints
