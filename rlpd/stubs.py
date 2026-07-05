@@ -35,5 +35,5 @@ class StubAgent:
     def act(self, obs: np.ndarray, deterministic: bool = False) -> np.ndarray:
         return np.random.uniform(-1.0, 1.0, self.act_dim).astype(np.float32)
 
-    def update(self, batch: Batch) -> Dict[str, float]:
+    def update(self, batch: Batch, update_actor: bool = True) -> Dict[str, float]:
         return {"critic_loss": 0.0, "actor_loss": 0.0, "alpha": 1.0, "mean_q": 0.0}
