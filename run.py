@@ -44,13 +44,17 @@ def main() -> None:
     p.add_argument("--stub", action="store_true", help="use StubAgent + MockBuffer (wiring test)")
     p.add_argument("--steps", type=int, default=None, help="cap env steps (short runs)")
     p.add_argument("--wandb-offline", action="store_true")
+    p.add_argument("--resume", nargs="?", const="auto", default=None,
+                   help="resume from a checkpoint: --resume [path], no path = the "
+                        "run's default checkpoint (checkpoints/<run_name>.pt)")
     args = p.parse_args()
 
     cfg = apply_overrides(load_config(args.config), args.set)
     if args.wandb_offline:
         cfg.setdefault("wandb", {})["mode"] = "offline"
 
-    train_mod.train(cfg, device=args.device, use_stubs=args.stub, max_steps=args.steps)
+    train_mod.train(cfg, device=args.device, use_stubs=args.stub, max_steps=args.steps,
+                    resume=args.resume)
 
 
 if __name__ == "__main__":
