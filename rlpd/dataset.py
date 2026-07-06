@@ -8,9 +8,10 @@ from .replay_buffer import ReplayBuffer
 
 # env id -> Minari dataset id (expert class, minari 0.5.2).
 DATASET_IDS = {
-    "Hopper-v5": "mujoco/hopper/expert-v0",            # obs 11, act 3, ~999k steps
-    "HalfCheetah-v5": "mujoco/halfcheetah/expert-v0",  # obs 17, act 6,  1.0M steps
-    "Walker2d-v5": "mujoco/walker2d/expert-v0",        # obs 17, act 6, ~999k steps
+    "Hopper-v5": "mujoco/hopper/expert-v0",            # obs 11,  act 3, ~999k steps
+    "HalfCheetah-v5": "mujoco/halfcheetah/expert-v0",  # obs 17,  act 6,  1.0M steps
+    "Walker2d-v5": "mujoco/walker2d/expert-v0",        # obs 17,  act 6, ~999k steps
+    "Humanoid-v5": "mujoco/humanoid/expert-v0",        # obs 348, act 17, ~999k steps, ~2.9GB
 }
 
 

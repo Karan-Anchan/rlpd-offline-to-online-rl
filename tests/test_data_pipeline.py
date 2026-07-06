@@ -1,8 +1,9 @@
-"""Data-pipeline tests: the batch contract, symmetric sampling, and — gated
-behind RLPD_RUN_SLOW=1 — the real Hopper Minari load + random-policy eval.
+"""Data-pipeline tests: the batch contract, symmetric sampling, dataset registry,
+and — behind opt-in env vars — the real Minari loads + random-policy eval.
 
-    pytest                       # fast contract tests only
-    RLPD_RUN_SLOW=1 pytest       # also load the real dataset (downloads ~1GB)
+    pytest                       # fast tests only (no downloads)
+    RLPD_RUN_SLOW=1 pytest       # + locomotion loads/eval (~555MB)
+    RLPD_RUN_HUMANOID=1 pytest   # + humanoid load (~2.9GB)
 """
 
 import os
@@ -17,6 +18,9 @@ from rlpd.replay_buffer import ReplayBuffer, symmetric_sample
 OBS_DIM, ACT_DIM = 11, 3  # Hopper-v5
 RUN_SLOW = os.environ.get("RLPD_RUN_SLOW") == "1"
 slow = pytest.mark.skipif(not RUN_SLOW, reason="set RLPD_RUN_SLOW=1 (downloads Minari)")
+# Humanoid is ~2.9GB on its own, so it gets a separate opt-in from the locomotion suite.
+RUN_HUMANOID = os.environ.get("RLPD_RUN_HUMANOID") == "1"
+humanoid_slow = pytest.mark.skipif(not RUN_HUMANOID, reason="set RLPD_RUN_HUMANOID=1 (~2.9GB)")
 
 
 def _fill(buf: ReplayBuffer, n: int, done_every: int | None = None) -> None:
@@ -69,13 +73,27 @@ def test_ring_buffer_wraps_and_caps_size():
     assert buf.ptr == 25 % 10
 
 
-def test_dataset_registry_covers_reproduction_tasks():
+def test_dataset_registry():
     from rlpd.dataset import DATASET_IDS, dataset_id_for_env
 
-    assert set(DATASET_IDS) == {"Hopper-v5", "HalfCheetah-v5", "Walker2d-v5"}
+    # reproduction tasks + the humanoid extension are all registered
+    assert {"Hopper-v5", "HalfCheetah-v5", "Walker2d-v5", "Humanoid-v5"} <= set(DATASET_IDS)
     assert dataset_id_for_env("Walker2d-v5") == "mujoco/walker2d/expert-v0"
+    assert dataset_id_for_env("Humanoid-v5") == "mujoco/humanoid/expert-v0"
     with pytest.raises(KeyError):
         dataset_id_for_env("Ant-v5")
+
+
+def test_humanoid_env_dims():
+    pytest.importorskip("gymnasium")
+    from rlpd.envs import make_env, env_dims
+
+    env = make_env("Humanoid-v5", seed=0)
+    try:
+        # v5 excludes contact forces from the observation, so obs is 348, not 376.
+        assert env_dims(env) == (348, 17)
+    finally:
+        env.close()
 
 
 # ---- slow: real Minari load + random eval, per reproduction task ----
@@ -115,3 +133,18 @@ def test_offline_load_and_random_eval(env_id, dims):
     norm = normalized_score(env_id, mean_ret)
     env.close()
     assert norm is not None and -5.0 < norm < 10.0, f"random normalized={norm}, expected ~0"
+
+
+@humanoid_slow
+def test_humanoid_offline_load():
+    pytest.importorskip("minari")
+    from rlpd.dataset import load_offline_buffer_for_env
+
+    obs_dim, act_dim = 348, 17
+    offline = load_offline_buffer_for_env("Humanoid-v5", obs_dim, act_dim, "cpu")
+    assert offline.size == offline.capacity > 0
+
+    done_rate = offline.done.sum() / offline.size
+    assert done_rate < 0.01, f"done rate {done_rate:.4f} too high — truncations leaking in?"
+
+    check_batch(offline.sample(256), obs_dim, act_dim)
