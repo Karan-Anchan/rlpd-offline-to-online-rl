@@ -4,12 +4,18 @@ Run naming NR1_[Env]_[Setting]_[Seed], raw and normalized returns on an env-step
 x-axis, and run provenance (seed, dataset id, versions, git commit).
 """
 
+import csv
 import importlib
 import subprocess
 import sys
+import time
+from pathlib import Path
 from typing import Optional
 
 import yaml
+
+RESULTS_DIR = Path("results")  # local, gitignored; mirrors eval metrics for plotting
+BUDGET_CSV = RESULTS_DIR / "budget.csv"  # one row per finished run (compute accounting)
 
 # D4RL reference scores for 100 * (score - min) / (max - min); min=random, max=expert.
 # Minari carries no reference scores; the v5/TQC expert datasets exceed 100 (~119-149%).
@@ -61,6 +67,16 @@ def _package_versions() -> dict:
     return versions
 
 
+def _append_csv(path: Path, row: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    new = not path.exists()
+    with open(path, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(row))
+        if new:
+            writer.writeheader()
+        writer.writerow(row)
+
+
 class WandbLogger:
     def __init__(self, cfg: dict, extra_config: Optional[dict] = None,
                  run_id: Optional[str] = None):
@@ -93,6 +109,11 @@ class WandbLogger:
             resume="must" if run_id else None,
         )
         self.run_id = self.run.id
+        self._last_train: dict = {}
+        self._last_step = 0
+        self._start = time.time()
+        self.cfg = cfg
+        self._eval_csv = RESULTS_DIR / f"{self.run_name}.eval.csv"
 
         # env_step is the x-axis for all curves.
         wandb.define_metric("env_step")
@@ -103,6 +124,8 @@ class WandbLogger:
         payload = {f"train/{k}": v for k, v in metrics.items()}
         payload["env_step"] = env_step
         self.wandb.log(payload)
+        self._last_train = dict(metrics)
+        self._last_step = max(self._last_step, env_step)
 
     def log_eval(self, raw_return: float, env_step: int, extra: Optional[dict] = None) -> Optional[float]:
         payload = {"eval/return_raw": raw_return, "env_step": env_step}
@@ -113,9 +136,26 @@ class WandbLogger:
             for k, v in extra.items():
                 payload[f"eval/{k}"] = v
         self.wandb.log(payload)
+
+        row = {"env_step": env_step, "return_raw": raw_return, "return_normalized": norm}
+        row.update({k: self._last_train.get(k) for k in
+                    ("mean_q", "critic_loss", "actor_loss", "alpha")})
+        _append_csv(self._eval_csv, row)
         return norm
 
     def finish(self) -> None:
+        try:
+            exp = self.cfg["experiment"]
+            _append_csv(BUDGET_CSV, {
+                "run_name": self.run_name,
+                "env": env_short_name(self.env_id),
+                "setting": exp["setting"],
+                "seed": exp["seed"],
+                "env_steps": self._last_step,
+                "wall_seconds": round(time.time() - self._start, 1),
+            })
+        except Exception:
+            pass  # budget accounting must never break a run's teardown
         self.run.finish()
 
 
