@@ -26,7 +26,7 @@ def summarize(df: pd.DataFrame) -> None:
     total_steps = int(df["env_steps"].sum())
     total_hours = df["wall_seconds"].sum() / 3600.0
     print(df.to_markdown(index=False))
-    print(f"\n{len(df)} runs · {total_steps:,} env-steps · {total_hours:.2f} GPU-hours")
+    print(f"\n{len(df)} runs | {total_steps:,} env-steps | {total_hours:.2f} GPU-hours")
 
 
 def measured_throughput(df: pd.DataFrame) -> float | None:

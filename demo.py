@@ -39,6 +39,7 @@ def rollout(agent, env, episodes: int) -> tuple[list[float], list[int]]:
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--config", default="config.yaml")
+    p.add_argument("--env", default=None, help="override env.id (e.g. HalfCheetah-v5)")
     p.add_argument("--checkpoint", default=None, help="default: checkpoints/<run_name>.pt")
     p.add_argument("--episodes", type=int, default=5)
     p.add_argument("--video", default=None, help="path to save an mp4 (best-effort)")
@@ -46,6 +47,8 @@ def main() -> None:
     args = p.parse_args()
 
     cfg = load_config(args.config)
+    if args.env:
+        cfg["env"]["id"] = args.env
     env_id = cfg["env"]["id"]
     ckpt = Path(args.checkpoint) if args.checkpoint else Path("checkpoints") / f"{build_run_name(cfg)}.pt"
     if not ckpt.exists():
