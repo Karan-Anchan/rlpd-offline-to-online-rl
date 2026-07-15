@@ -11,6 +11,14 @@
 ![gpu](https://img.shields.io/badge/trained_on-RTX_5070-ffb454?style=flat-square&labelColor=0b0e14)
 ![license](https://img.shields.io/badge/license-MIT-8b9080?style=flat-square&labelColor=0b0e14)
 
+<br>
+
+<img src="assets/hopper.gif" width="30%" alt="Hopper"/>&nbsp;
+<img src="assets/walker2d.gif" width="30%" alt="Walker2d"/>&nbsp;
+<img src="assets/halfcheetah.gif" width="30%" alt="HalfCheetah"/>
+
+<sub>Trained <b>250k</b> seed-0 policies rolling out in MuJoCo — Hopper <b>98</b> · Walker2d <b>139</b> · HalfCheetah <b>110</b> normalized (D4RL)</sub>
+
 </div>
 
 ---
@@ -39,6 +47,8 @@ Everything else (CDQ, entropy backups, 2-vs-3 critic layers) is a per-task knob 
 **Full-length runs — seed 0, 250k env-steps per task** (seeds 1–2 still scaling up).
 D4RL-normalized against the Minari expert datasets; measured on an RTX 5070 (Blackwell, 12 GB).
 
+<p align="center"><img src="assets/curves_250k_dark.png" width="90%" alt="D4RL normalized return vs environment steps"/></p>
+
 | Task | Setting | Seeds | Env-steps | Final return | Normalized (D4RL) | Mean Q |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | Hopper-v5      | RLPD | 1 | 245,000 | 3,748  | **97.8**  | 355 |
@@ -60,6 +70,9 @@ D4RL-normalized against the Minari expert datasets; measured on an RTX 5070 (Bla
   plan, Humanoid included.
 - **Seed 0 at the full horizon; seeds 1–2 still training.** An earlier 3-seed **60k** progression
   preview reached 39–51 normalized before the full runs.
+
+<p align="center"><img src="assets/meanq_250k_dark.png" width="90%" alt="Mean critic Q vs environment steps"/></p>
+<p align="center"><sub>Mean critic Q rises then <b>plateaus</b> on every task — bounded, not diverging: the mechanism behind the stable returns.</sub></p>
 
 ## Method
 
