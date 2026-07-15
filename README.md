@@ -47,12 +47,7 @@ Everything else (CDQ, entropy backups, 2-vs-3 critic layers) is a per-task knob 
 **Full-length runs — seed 0, 250k env-steps per task** (seeds 1–2 still scaling up).
 D4RL-normalized against the Minari expert datasets; measured on an RTX 5070 (Blackwell, 12 GB).
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="assets/curves_250k_light.png"/>
-    <img src="assets/curves_250k_dark.png" width="90%" alt="D4RL normalized return vs environment steps"/>
-  </picture>
-</p>
+<p align="center"><img src="assets/returns.png" width="82%" alt="Normalized return vs environment steps"/></p>
 
 | Task | Setting | Seeds | Env-steps | Final return | Normalized (D4RL) | Mean Q |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -76,13 +71,8 @@ D4RL-normalized against the Minari expert datasets; measured on an RTX 5070 (Bla
 - **Seed 0 at the full horizon; seeds 1–2 still training.** An earlier 3-seed **60k** progression
   preview reached 39–51 normalized before the full runs.
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="assets/meanq_250k_light.png"/>
-    <img src="assets/meanq_250k_dark.png" width="90%" alt="Mean critic Q vs environment steps"/>
-  </picture>
-</p>
-<p align="center"><sub>Mean critic Q rises then <b>plateaus</b> on every task — bounded, not diverging: the mechanism behind the stable returns.</sub></p>
+<p align="center"><img src="assets/mean_q.png" width="82%" alt="Mean Q vs environment steps"/></p>
+<p align="center"><sub>Mean <i>Q</i> rises then plateaus on every task — bounded, not diverging.</sub></p>
 
 ## Method
 
