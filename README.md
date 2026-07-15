@@ -2,7 +2,7 @@
 
 # RLPD // OFFLINE→ONLINE RL
 
-**Offline data + live practice — a from-scratch PyTorch reproduction of RLPD, a check of *why* it works, and a push past the paper to Humanoid.**
+**PyTorch reproduction of RLPD (offline-to-online RL) on MuJoCo locomotion, with a Humanoid extension.**
 
 ![paper](https://img.shields.io/badge/paper-RLPD_·_ICML_2023-7aa2f7?style=flat-square&labelColor=0b0e14)
 ![framework](https://img.shields.io/badge/PyTorch-2.11_·_cu128-ffb454?style=flat-square&labelColor=0b0e14)
@@ -34,7 +34,7 @@ A reproduction study of **RLPD** — *Efficient Online Reinforcement Learning wi
 > standard off-policy **SAC**, feed it the dataset through a 50/50 online↔offline mix, and add three
 > safeguards so the value function can't diverge when the agent starts exploring.
 
-The three modifications — this *is* the method:
+The three modifications:
 
 1. **Symmetric sampling** — every training batch is 50% fresh online replay, 50% offline data.
 2. **LayerNorm critic** — LayerNorm bounds Q-values on out-of-distribution actions (the divergence fix).
@@ -63,11 +63,10 @@ D4RL-normalized against the Minari expert datasets; measured on an RTX 5070 (Bla
 
 - **All three tasks pass the D4RL expert line (100) within the 250k budget** — off expert-seeded
   offline data. Walker2d leads (~139), HalfCheetah ~110, Hopper ~98.
-- **The critic stays bounded.** Mean Q rises then *plateaus* on every task, even over the full
-  horizon — no value explosion. Bounded Q is the mechanism behind the stable returns, and confirms
-  LayerNorm + the ensemble are doing their job.
-- **Single desktop GPU, $0 cloud.** State-based MuJoCo (small MLPs) — one RTX 5070 covers the whole
-  plan, Humanoid included.
+- **Bounded value estimates.** Mean Q rises then plateaus on every task over the full horizon — no
+  divergence — consistent with LayerNorm and the ensemble bounding out-of-distribution Q.
+- **Single desktop GPU.** State-based MuJoCo (small MLPs); one RTX 5070 covers the full plan,
+  Humanoid included.
 - **Seed 0 at the full horizon; seeds 1–2 still training.** An earlier 3-seed **60k** progression
   preview reached 39–51 normalized before the full runs.
 
