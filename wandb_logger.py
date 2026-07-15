@@ -23,6 +23,9 @@ REFERENCE_SCORES = {
     "HalfCheetah": (-280.178953, 12135.0),
     "Hopper": (-20.272305, 3234.3),
     "Walker2d": (1.629008, 4592.3),
+    # Humanoid has no D4RL reference. random ~101.8 (measured); set expert from the dataset:
+    #   "Humanoid": (101.8, dataset.mean_return("mujoco/humanoid/expert-v0")),
+    # until then Humanoid logs raw return only (normalized = None).
 }
 
 

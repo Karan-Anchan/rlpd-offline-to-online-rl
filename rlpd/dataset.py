@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import minari
+import numpy as np
 
 from .replay_buffer import ReplayBuffer
 
@@ -39,3 +40,9 @@ def load_offline_buffer(dataset_id: str, obs_dim: int, act_dim: int,
 def load_offline_buffer_for_env(env_id: str, obs_dim: int, act_dim: int,
                                 device: str = "cpu") -> ReplayBuffer:
     return load_offline_buffer(dataset_id_for_env(env_id), obs_dim, act_dim, device)
+
+
+def mean_return(dataset_id: str) -> float:
+    """Mean episode return of a Minari dataset (normalization reference)."""
+    ds = minari.load_dataset(dataset_id, download=True)
+    return float(np.mean([float(ep.rewards.sum()) for ep in ds.iterate_episodes()]))
