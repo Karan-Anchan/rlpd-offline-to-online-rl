@@ -10,8 +10,10 @@ outputs/
 results/
 figures/
 checkpoints/
+checkpoints_250k/
 *.ckpt
 *.pt
+*.pt.zip
 *.pth
 data/
 datasets/
