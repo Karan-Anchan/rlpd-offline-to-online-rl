@@ -11,7 +11,7 @@ import torch
 
 from rlpd.envs import make_env, env_dims
 from rlpd.evaluate import evaluate
-from rlpd.replay_buffer import ReplayBuffer, symmetric_sample_many
+from rlpd.replay_buffer import ReplayBuffer, symmetric_sample_many, combined_sample_many
 from rlpd.stubs import MockBuffer, StubAgent
 from wandb_logger import WandbLogger, build_run_name
 
@@ -28,6 +28,9 @@ def seed_everything(seed: int) -> None:
 def build_agent(cfg: dict, obs_dim: int, act_dim: int, device: str, use_stubs: bool):
     if use_stubs:
         return StubAgent(act_dim)
+    if cfg["experiment"]["setting"] == "IQL":
+        from rlpd.iql import IQL
+        return IQL(obs_dim, act_dim, cfg, device)
     from rlpd.sac import RLPDAgent
     return RLPDAgent(obs_dim, act_dim, cfg, device)
 
@@ -36,7 +39,8 @@ def build_offline_buffer(cfg: dict, obs_dim: int, act_dim: int, device: str, use
     if use_stubs:
         return MockBuffer(obs_dim, act_dim, device)
     from rlpd.dataset import load_offline_buffer, dataset_id_for_env
-    dataset_id = cfg.get("dataset", {}).get("minari_id") or dataset_id_for_env(cfg["env"]["id"])
+    d = cfg.get("dataset", {})
+    dataset_id = d.get("minari_id") or dataset_id_for_env(cfg["env"]["id"], d.get("quality", "expert"))
     return load_offline_buffer(dataset_id, obs_dim, act_dim, device)
 
 
@@ -127,6 +131,19 @@ def train(cfg: dict, device: str = "cuda", use_stubs: bool = False,
     ratio = algo["symmetric_sampling_ratio"]
     utd = algo["utd"]
     total = max_steps if max_steps is not None else tr["total_env_steps"]
+    setting = cfg["experiment"]["setting"]
+    sampling = cfg.get("sampling", "symmetric")
+
+    # IQL: offline pretraining before online finetuning
+    if setting == "IQL" and not use_stubs and start_step == 0:
+        pre = int(cfg["iql"]["offline_pretrain_steps"])
+        for i in range(pre):
+            m = agent.update(offline.sample(batch_size), update_actor=(i % 5000 == 0))
+            if i % 5000 == 0 and i > 0:
+                print(f"  IQL pretrain {i}/{pre}  mean_q={m['mean_q']:.1f}")
+        mean_ret, _ = evaluate(agent, eval_env, tr["eval_episodes"])
+        logger.log_eval(mean_ret, env_step=0)
+        print(f"IQL offline pretrain done, eval return {mean_ret:.1f}")
 
     # --- main loop ---
     # The env can't be checkpointed, so a resumed run starts on a fresh episode.
@@ -150,7 +167,9 @@ def train(cfg: dict, device: str = "cuda", use_stubs: bool = False,
         #    temperature update once per env step, on the last minibatch
         #    (REDQ / official RLPD).
         if step >= tr["start_steps"]:
-            batches = symmetric_sample_many(online, offline, batch_size, utd, ratio=ratio)
+            batches = (combined_sample_many(online, offline, batch_size, utd)
+                       if sampling == "combined"
+                       else symmetric_sample_many(online, offline, batch_size, utd, ratio=ratio))
             for i, batch in enumerate(batches):
                 is_last = i == utd - 1
                 metrics = agent.update(batch, update_actor=is_last)

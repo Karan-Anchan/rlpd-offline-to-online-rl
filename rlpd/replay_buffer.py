@@ -88,6 +88,19 @@ def symmetric_sample(
     return batch
 
 
+def combined_sample_many(
+    online: ReplayBuffer, offline: ReplayBuffer, batch_size: int, count: int
+) -> list[Batch]:
+    """`count` batches drawn from the online+offline union, proportional to size (SACfD)."""
+    total = batch_size * count
+    n_on = round(total * online.size / (online.size + offline.size))
+    parts = ([online.sample(n_on)] if n_on > 0 else []) + [offline.sample(total - n_on)]
+    cat = {name: torch.cat([p[name] for p in parts], dim=0) for name in FIELDS}
+    perm = torch.randperm(total, device=cat["obs"].device)
+    return [{name: cat[name][perm[i * batch_size:(i + 1) * batch_size]] for name in FIELDS}
+            for i in range(count)]
+
+
 def symmetric_sample_many(
     online: ReplayBuffer,
     offline: ReplayBuffer,

@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 
 from wandb_logger import load_config
+from rlpd.settings import apply_setting
 import train as train_mod
 
 
@@ -49,7 +50,7 @@ def main() -> None:
                         "run's default checkpoint (checkpoints/<run_name>.pt)")
     args = p.parse_args()
 
-    cfg = apply_overrides(load_config(args.config), args.set)
+    cfg = apply_setting(apply_overrides(load_config(args.config), args.set))
     if args.wandb_offline:
         cfg.setdefault("wandb", {})["mode"] = "offline"
 

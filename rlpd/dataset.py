@@ -6,22 +6,22 @@ import minari
 
 from .replay_buffer import ReplayBuffer
 
-# env id -> Minari dataset id (expert class, minari 0.5.2).
-DATASET_IDS = {
-    "Hopper-v5": "mujoco/hopper/expert-v0",            # obs 11,  act 3, ~999k steps
-    "HalfCheetah-v5": "mujoco/halfcheetah/expert-v0",  # obs 17,  act 6,  1.0M steps
-    "Walker2d-v5": "mujoco/walker2d/expert-v0",        # obs 17,  act 6, ~999k steps
-    "Humanoid-v5": "mujoco/humanoid/expert-v0",        # obs 348, act 17, ~999k steps, ~2.9GB
+# Minari ships {medium, simple, expert} per env (no "random").
+_SLUG = {
+    "Hopper-v5": "mujoco/hopper",
+    "HalfCheetah-v5": "mujoco/halfcheetah",
+    "Walker2d-v5": "mujoco/walker2d",
+    "Humanoid-v5": "mujoco/humanoid",
 }
+QUALITIES = ("medium", "simple", "expert")
 
 
-def dataset_id_for_env(env_id: str) -> str:
-    try:
-        return DATASET_IDS[env_id]
-    except KeyError:
-        raise KeyError(
-            f"no offline dataset registered for {env_id!r}; known: {sorted(DATASET_IDS)}"
-        ) from None
+def dataset_id_for_env(env_id: str, quality: str = "expert") -> str:
+    if env_id not in _SLUG:
+        raise KeyError(f"no offline dataset registered for {env_id!r}; known: {sorted(_SLUG)}")
+    if quality not in QUALITIES:
+        raise ValueError(f"unknown dataset quality {quality!r}; known: {QUALITIES}")
+    return f"{_SLUG[env_id]}/{quality}-v0"
 
 
 def load_offline_buffer(dataset_id: str, obs_dim: int, act_dim: int,

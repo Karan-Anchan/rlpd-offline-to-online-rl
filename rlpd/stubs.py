@@ -13,6 +13,7 @@ from .interfaces import Batch
 class MockBuffer:
     def __init__(self, obs_dim: int, act_dim: int, device: str = "cpu"):
         self.obs_dim, self.act_dim, self.device = obs_dim, act_dim, device
+        self.size = 10 ** 6  # pretend-large offline buffer for combined sampling
 
     def add(self, *args) -> None:
         pass

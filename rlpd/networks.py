@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import List, Optional, Tuple
 
 import torch
@@ -76,6 +77,28 @@ class Actor(nn.Module):
                 torch.log(torch.tensor(2.0, device=u.device)) - u - F.softplus(-2.0 * u)
             ).sum(-1, keepdim=True)
         return action, log_prob
+
+    def log_prob(self, obs: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
+        """log pi(a|s) for a given tanh-squashed action (IQL / AWR)."""
+        features = self.trunk(obs)
+        mu = self.mu(features)
+        log_std = self.log_std(features).clamp(LOG_STD_MIN, LOG_STD_MAX)
+        dist = torch.distributions.Normal(mu, log_std.exp())
+        u = torch.atanh(action.clamp(-0.999999, 0.999999))
+        logp = dist.log_prob(u).sum(-1, keepdim=True)
+        logp -= 2.0 * (math.log(2.0) - u - F.softplus(-2.0 * u)).sum(-1, keepdim=True)
+        return logp
+
+
+class ValueNet(nn.Module):
+    """State-value V(s) for IQL."""
+
+    def __init__(self, obs_dim: int, hidden_width: int = 256, num_layers: int = 2):
+        super().__init__()
+        self.net = mlp([obs_dim] + [hidden_width] * num_layers + [1], layernorm=False)
+
+    def forward(self, obs: torch.Tensor) -> torch.Tensor:
+        return self.net(obs)
 
 
 class EnsembleLinear(nn.Module):

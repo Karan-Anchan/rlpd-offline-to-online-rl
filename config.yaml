@@ -14,7 +14,15 @@ env:
   id: Hopper-v5
 
 dataset:
-  minari_id: mujoco/hopper/expert-v0
+  quality: expert          # medium | simple | expert (Minari); minari_id overrides if set
+
+# IQL baseline (Kostrikov et al. 2021)
+iql:
+  expectile: 0.7
+  beta: 3.0
+  tau: 0.005
+  adv_clip: 100.0
+  offline_pretrain_steps: 1000000
 
 # RLPD core (paper Table 1)
 algo:
