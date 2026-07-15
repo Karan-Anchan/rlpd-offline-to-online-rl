@@ -48,7 +48,8 @@ def normalized_score(env_id: str, raw_return: float) -> Optional[float]:
 
 def build_run_name(cfg: dict) -> str:
     exp = cfg["experiment"]
-    return f"{exp['group_id']}_{env_short_name(cfg['env']['id'])}_{exp['setting']}_seed{exp['seed']}"
+    q = cfg.get("dataset", {}).get("quality", "expert")
+    return f"{exp['group_id']}_{env_short_name(cfg['env']['id'])}_{exp['setting']}_{q}_seed{exp['seed']}"
 
 
 def _git_commit() -> str:
