@@ -68,18 +68,19 @@ final five evaluations first, which strips most of the per-eval noise. Where the
 
 **Findings**
 
-- **RLPD reaches 88–90% of the Minari v5 expert on all three tasks**, and it is the only method
+- RLPD reaches 88–90% of the Minari v5 expert on all three tasks, and it is the only method
   that does so on all three.
-- **Its real advantage is consistency, not peak score.** IQL is competitive on final return
-  (86.0 on HalfCheetah, 84.3 on Walker2d) but far noisier across seeds — RLPD's seed std is
-  **0.7 / 1.6 / 6.8** against IQL's **6.6 / 7.8 / 29.2**. On Hopper, IQL's spread is wide enough
-  that the two overlap; the honest claim there is a lower-variance tie, not a win.
-- **SACfD collapses**, exactly as the paper predicts for naive SAC on a shared offline+online
+- Its advantage is consistency more than peak score. IQL is competitive on final return
+  (86.0 on HalfCheetah, 84.3 on Walker2d) but far noisier across seeds: RLPD's seed std is
+  0.7 / 1.6 / 6.8 against IQL's 6.6 / 7.8 / 29.2. On Hopper, IQL's spread is wide enough that
+  the two overlap, so the honest claim there is a lower-variance tie.
+- SACfD collapses, exactly as the paper predicts for naive SAC on a shared offline+online
   buffer: 8.1 on Walker2d and 18.5 on HalfCheetah, with the Walker2d critic running away to
-  **mean Q ≈ 85,000** while RLPD sits at 545.
-- **Bounded value estimates.** RLPD's mean Q rises then plateaus on every task — no divergence —
-  consistent with LayerNorm and the ensemble bounding out-of-distribution Q.
-- **Single desktop GPU.** State-based MuJoCo (small MLPs); one RTX 5070 covers the full plan.
+  a mean Q around 85,000 while RLPD sits at 545.
+- RLPD's value estimates stay bounded. Mean Q rises then plateaus on every task, with no
+  divergence, consistent with LayerNorm and the ensemble bounding out-of-distribution Q.
+- Everything fits one desktop GPU. State-based MuJoCo means small MLPs, and a single RTX 5070
+  covers the full plan.
 
 <p align="center"><img src="assets/mean_q.png" width="100%" alt="Mean Q vs environment steps, log scale, for RLPD, IQL and SACfD"/></p>
 <p align="center"><sub>RLPD's mean <i>Q</i> plateaus on every task. SACfD's Walker2d critic diverges by two orders of magnitude.</sub></p>
