@@ -21,31 +21,43 @@ import pandas as pd
 
 RESULTS_DIR = Path("results")
 FIGURES_DIR = Path("figures")
-RUN_RE = re.compile(r"^(?P<group>[^_]+)_(?P<env>[^_]+)_(?P<setting>[^_]+)_seed(?P<seed>\d+)$")
+# Run names are NR1_<Env>_<Setting>[_<quality>]_seed<N>. The quality suffix is optional:
+# the earliest runs predate it and were all trained on the expert datasets.
+QUALITIES = ("simple", "medium", "expert")
+RUN_RE = re.compile(
+    r"^(?P<group>[^_]+)_(?P<env>[^_]+)_(?P<setting>[^_]+)"
+    r"(?:_(?P<quality>" + "|".join(QUALITIES) + r"))?"
+    r"_seed(?P<seed>\d+)$"
+)
 
 
 def load_runs(results_dir: Path = RESULTS_DIR) -> pd.DataFrame:
-    """Concatenate every eval CSV, tagged with env / setting / seed from its name."""
+    """Concatenate every eval CSV, tagged with env / setting / quality / seed from its name."""
     frames = []
     for csv in sorted(results_dir.glob("*.eval.csv")):
         m = RUN_RE.match(csv.name[: -len(".eval.csv")])
         if not m:
+            print(f"skipping unparseable run name: {csv.name}")
             continue
         df = pd.read_csv(csv)
+        if df.empty:
+            continue
         df["env"], df["setting"], df["seed"] = m["env"], m["setting"], int(m["seed"])
+        df["quality"] = m["quality"] or "expert"
         frames.append(df)
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
 def _aggregate(df: pd.DataFrame, y: str) -> pd.DataFrame:
-    """Mean/std of `y` across seeds at each env_step, per (env, setting)."""
+    """Mean/std of `y` across seeds at each env_step, per (env, setting, quality)."""
     agg = (
         df.dropna(subset=[y])
-        .groupby(["env", "setting", "env_step"])[y]
+        .groupby(["env", "setting", "quality", "env_step"])[y]
         .agg(["mean", "std", "count"])
         .reset_index()
     )
     agg["std"] = agg["std"].fillna(0.0)  # single seed -> no band
+    agg["label"] = agg["setting"] + " · " + agg["quality"]
     return agg
 
 
@@ -57,7 +69,7 @@ def plot_metric(df: pd.DataFrame, metric: str, ylabel: str, outdir: Path) -> lis
     for env in sorted(agg["env"].unique()):
         sub = agg[agg["env"] == env]
         fig, ax = plt.subplots(figsize=(6, 4))
-        for setting, s in sub.groupby("setting"):
+        for setting, s in sub.groupby("label"):
             s = s.sort_values("env_step")
             ax.plot(s["env_step"], s["mean"], label=setting, linewidth=2)
             ax.fill_between(s["env_step"], s["mean"] - s["std"], s["mean"] + s["std"], alpha=0.2)
@@ -75,20 +87,43 @@ def plot_metric(df: pd.DataFrame, metric: str, ylabel: str, outdir: Path) -> lis
 
 
 def summary_table(df: pd.DataFrame) -> pd.DataFrame:
-    """Final-eval performance per (env, setting), averaged over seeds."""
-    last_step = df.groupby(["env", "setting", "seed"])["env_step"].transform("max")
+    """Final-eval performance per (env, setting, quality), averaged over seeds.
+
+    `final_*` is the last eval of each run; `last5_normalized` averages each run's final five
+    evals before averaging across seeds, which strips a lot of the per-eval noise on Hopper
+    and HalfCheetah. Report both — they disagree by ~10 points where the run is still swingy.
+    """
+    keys = ["env", "setting", "quality", "seed"]
+    last_step = df.groupby(keys)["env_step"].transform("max")
     finals = df[df["env_step"] == last_step]
+
+    tail = (
+        df.sort_values("env_step")
+        .groupby(keys)
+        .tail(5)
+        .groupby(keys)["return_normalized"]
+        .mean()
+        .reset_index(name="last5_normalized")
+    )
+
     table = (
-        finals.groupby(["env", "setting"])
+        finals.groupby(["env", "setting", "quality"])
         .agg(
             seeds=("seed", "nunique"),
-            env_steps=("env_step", "max"),
+            # both ends: where they differ the seeds are ragged and the group's mean mixes
+            # runs stopped at different horizons (e.g. the expert sweep: 245k / 57.5k / 57.5k)
+            env_steps_min=("env_step", "min"),
+            env_steps_max=("env_step", "max"),
             final_raw=("return_raw", "mean"),
             final_normalized=("return_normalized", "mean"),
+            final_normalized_std=("return_normalized", "std"),
             final_mean_q=("mean_q", "mean"),
         )
         .reset_index()
     )
+    tail_agg = tail.groupby(["env", "setting", "quality"])["last5_normalized"].mean().reset_index()
+    table = table.merge(tail_agg, on=["env", "setting", "quality"], how="left")
+    table["final_normalized_std"] = table["final_normalized_std"].fillna(0.0)
     return table.round(2)
 
 
@@ -105,7 +140,7 @@ def main() -> None:
         print(f"no eval CSVs in {args.results}/ yet — run a training job first.")
         return
 
-    ylabel = {"return_normalized": "normalized return (D4RL)",
+    ylabel = {"return_normalized": "normalized return (Minari v5 expert = 100)",
               "return_raw": "raw return"}.get(args.metric, args.metric)
     written = plot_metric(df, args.metric, ylabel, args.figures)
     written += plot_metric(df, "mean_q", "mean Q (diagnostic)", args.figures)
