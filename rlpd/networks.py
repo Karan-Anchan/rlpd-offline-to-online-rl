@@ -40,11 +40,15 @@ class Actor(nn.Module):
     """
 
     def __init__(
-        self, obs_dim: int, act_dim: int, hidden_width: int = 256, num_layers: int = 2
+        self, obs_dim: int, act_dim: int, hidden_width: int = 256, num_layers: int = 2,
+        log_std_min: float = LOG_STD_MIN,
     ):
         super().__init__()
         self.obs_dim = obs_dim
         self.act_dim = act_dim
+        # SAC samples its own actions, so a low floor (-20) is safe; IQL/AWR scores fixed
+        # dataset actions, where a collapsed std makes log_prob explode -> use a higher floor.
+        self.log_std_min = log_std_min
         # Trunk ends with an activation so the mu/log_std heads read a nonlinear
         # feature; num_layers hidden layers total (paper: 2 for locomotion).
         self.trunk = mlp([obs_dim] + [hidden_width] * num_layers, layernorm=False)
@@ -62,7 +66,7 @@ class Actor(nn.Module):
         # Gaussian parameters from the trunk features.
         features = self.trunk(obs)
         mu = self.mu(features)
-        log_std = self.log_std(features).clamp(LOG_STD_MIN, LOG_STD_MAX)
+        log_std = self.log_std(features).clamp(self.log_std_min, LOG_STD_MAX)
         dist = torch.distributions.Normal(mu, log_std.exp())
 
         # Pre-squash sample u (reparameterised so gradients flow), then squash.
@@ -82,7 +86,7 @@ class Actor(nn.Module):
         """log pi(a|s) for a given tanh-squashed action (IQL / AWR)."""
         features = self.trunk(obs)
         mu = self.mu(features)
-        log_std = self.log_std(features).clamp(LOG_STD_MIN, LOG_STD_MAX)
+        log_std = self.log_std(features).clamp(self.log_std_min, LOG_STD_MAX)
         dist = torch.distributions.Normal(mu, log_std.exp())
         u = torch.atanh(action.clamp(-0.999999, 0.999999))
         logp = dist.log_prob(u).sum(-1, keepdim=True)

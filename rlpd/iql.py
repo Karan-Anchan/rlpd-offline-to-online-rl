@@ -30,7 +30,7 @@ class IQL:
         self.beta = float(iql["beta"])
         self.adv_clip = float(iql["adv_clip"])
 
-        self.actor = Actor(obs_dim, act_dim, width, num_layers).to(device)
+        self.actor = Actor(obs_dim, act_dim, width, num_layers, log_std_min=-5.0).to(device)
         self.critic = EnsembleCritic(obs_dim, act_dim, width, num_layers, 2, layernorm=False).to(device)
         self.critic_target = copy.deepcopy(self.critic).to(device)
         for p in self.critic_target.parameters():
