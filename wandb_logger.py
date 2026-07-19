@@ -17,15 +17,13 @@ import yaml
 RESULTS_DIR = Path("results")  # local, gitignored; mirrors eval metrics for plotting
 BUDGET_CSV = RESULTS_DIR / "budget.csv"  # one row per finished run (compute accounting)
 
-# D4RL reference scores for 100 * (score - min) / (max - min); min=random, max=expert.
-# Minari carries no reference scores; the v5/TQC expert datasets exceed 100 (~119-149%).
+# Anchors for 100 * (raw - random) / (expert - random): random = random-policy mean return
+# in the v5 env; expert = Minari v5 expert-dataset mean return (rlpd.dataset.mean_return).
 REFERENCE_SCORES = {
-    "HalfCheetah": (-280.178953, 12135.0),
-    "Hopper": (-20.272305, 3234.3),
-    "Walker2d": (1.629008, 4592.3),
-    # Humanoid has no D4RL reference. random ~101.8 (measured); set expert from the dataset:
-    #   "Humanoid": (101.8, dataset.mean_return("mujoco/humanoid/expert-v0")),
-    # until then Humanoid logs raw return only (normalized = None).
+    "Hopper": (24.80, 3857.8),
+    "Walker2d": (2.23, 6847.8),
+    "HalfCheetah": (-261.59, 16242.9),
+    "Humanoid": (105.58, 8602.85),
 }
 
 
