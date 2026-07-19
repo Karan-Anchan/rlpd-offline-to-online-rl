@@ -81,12 +81,14 @@ def load_checkpoint(path: Path, agent, online: ReplayBuffer, device: str) -> dic
     agent.load_state_dict(state["agent"])
     online.load(path.with_suffix(".buffer.npz"))
 
+    # RNG states are CPU ByteTensors; map_location may have moved them to the
+    # checkpoint device, so force them back to CPU uint8 before restoring.
     rng = state["rng"]
     random.setstate(rng["python"])
     np.random.set_state(rng["numpy"])
-    torch.set_rng_state(rng["torch"])
+    torch.set_rng_state(rng["torch"].cpu().to(torch.uint8))
     if rng["cuda"] is not None and torch.cuda.is_available():
-        torch.cuda.set_rng_state_all(rng["cuda"])
+        torch.cuda.set_rng_state_all([s.cpu().to(torch.uint8) for s in rng["cuda"]])
 
     return {"step": state["step"], "wandb_run_id": state.get("wandb_run_id")}
 
