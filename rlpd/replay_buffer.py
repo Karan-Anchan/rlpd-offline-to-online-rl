@@ -120,8 +120,10 @@ def symmetric_sample_many(
     # giving one (count, batch_size, dim) tensor per field.
     stacked: dict[str, torch.Tensor] = {}
     for name in FIELDS:
-        online_rows = online_part[name].view(count, n_online, -1)
-        offline_rows = offline_part[name].view(count, n_offline, -1)
+        # Pass the feature dim explicitly: at ratio 0/1 one side is empty, and view
+        # can't infer -1 from a 0-element tensor (symmetric-ratio ablations).
+        online_rows = online_part[name].view(count, n_online, online_part[name].shape[-1])
+        offline_rows = offline_part[name].view(count, n_offline, offline_part[name].shape[-1])
         stacked[name] = torch.cat([online_rows, offline_rows], dim=1)
 
     # Batch i is row i of every stacked tensor — a view, no copy.
