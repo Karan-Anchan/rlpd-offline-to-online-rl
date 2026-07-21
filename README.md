@@ -88,7 +88,9 @@ final five evaluations first, which strips most of the per-eval noise. Where the
 ### Offline data quality
 
 The same RLPD configuration, swept over the three Minari dataset qualities — better offline data
-monotonically buys a better online policy:
+buys a better online policy (clearest on Walker2d and HalfCheetah):
+
+<p align="center"><img src="assets/quality.png" width="100%" alt="RLPD normalized return across simple, medium and expert offline datasets on the three locomotion tasks"/></p>
 
 | Task | simple | medium | expert |
 | :--- | :---: | :---: | :---: |
@@ -102,19 +104,48 @@ monotonically buys a better online policy:
 
 ### Humanoid-v5 — beyond the paper
 
-`Humanoid-v5` is not in the RLPD paper. It is also much harder: 3 seeds at ~1M env-steps are
-still early, and the honest number is low.
+`Humanoid-v5` (348-dim observations, 17-dim actions) is not in the RLPD paper, and it is much
+harder — 3 seeds at 1M env-steps.
 
-| Method | Seeds | Env-steps | Final normalized | Critic |
-| :--- | :---: | :--- | :---: | :--- |
-| **RLPD** | 3 | 995k · 995k · 715k *(still training)* | 5.0 ± 2.4 | bounded, mean Q ≈ 518 |
-| SACfD | 3 | 995k · 550k · 430k | 6.2 ± 3.0 | **diverged to NaN on 2 of 3 seeds** |
+<p align="center"><img src="assets/humanoid.png" width="100%" alt="Humanoid-v5 normalized return and mean Q for RLPD, IQL and SACfD"/></p>
 
-The interesting result here is the failure, not the score. **SACfD's critic exploded to
-mean Q ≈ 4e10 (critic loss ≈ 6e17) before producing NaN** on seeds 1 and 2 — the precise
-instability that RLPD's LayerNorm critic and ensemble exist to prevent. RLPD stayed bounded on
-all three seeds at the same budget. Divergences are recorded rather than retried or patched, so
-the baseline stays like-for-like — see `results/*.DIVERGED.txt`.
+| Method | Final normalized | at env-step 0 | Critic |
+| :--- | :---: | :---: | :--- |
+| **IQL** | **70.1 ± 16.2** | 47.9 | bounded |
+| RLPD | 13.0 ± 13.8 | — *(random start)* | bounded, mean Q ≈ 518 |
+| SACfD | 6.5 ± 3.2 | — | **diverged to NaN on 2 of 3 seeds** |
+
+- **IQL wins on Humanoid — but mostly on its pretraining head start.** IQL runs 1M *offline*
+  gradient steps before any environment interaction, so it *starts* at 48 normalized (env-step 0)
+  and finetunes to 70. Those offline steps cost no env-steps, so on the env-step axis IQL sits far
+  above RLPD, which learns online from scratch. Read it as "offline pretraining pays off on hard
+  tasks," not "IQL is simply better."
+- **SACfD's failure is the headline.** Its critic exploded to mean Q ≈ 4e10 (critic loss ≈ 6e17)
+  before producing NaN on 2 of 3 seeds — the exact instability RLPD's LayerNorm critic and ensemble
+  exist to prevent. RLPD stayed bounded (mean Q ≈ 518) on all three. Divergences are recorded, not
+  retried or patched, so the baseline stays like-for-like — see `results/*.DIVERGED.txt`.
+
+### Ablations — which RLPD component carries Humanoid
+
+Each ablation changes one RLPD component (base RLPD otherwise), seed 0, 500k steps, against the
+RLPD reference at the matched step (last-5-eval normalized = 7.2).
+
+<p align="center"><img src="assets/ablations.png" width="100%" alt="Humanoid RLPD ablations: normalized return and mean Q, one component changed at a time"/></p>
+
+| Ablation | Δ vs RLPD | Reading |
+| :--- | :---: | :--- |
+| no LayerNorm | **diverged (NaN)** | LayerNorm is load-bearing — Q explodes to ≈9e10, like SACfD |
+| offline-only (ratio 0) | −7.9 | online interaction is essential; medium data alone ≈ random |
+| UTD 1 | −4.0 | high UTD (20) buys sample efficiency |
+| ensemble 2 | −2.6 | the 10-critic ensemble helps value estimation |
+| online-only (ratio 1) | **+15.9** | **beats the 50/50 mix** — see below |
+
+Three of four confirm the paper's design (LayerNorm ≫ UTD > ensemble; offline-only fails). The
+surprise is **online-only**: dropping the offline data entirely — leaving high-UTD SAC + LayerNorm +
+ensemble, a REDQ-like online learner — *beats* the 50/50 RLPD mix on Humanoid-medium (raw return
+2,263 vs 857 at 500k). The medium offline data appears to drag the policy toward medium behaviour
+rather than help. **Single seed**, so the +15.9 is the one result here that still needs 2–3 seeds
+before it becomes a claim.
 
 ## Method
 
@@ -165,7 +196,7 @@ python demo.py --episodes 5       # roll out a trained checkpoint (deterministic
 python budget.py                  # compute-budget accounting + projection
 
 python -m plotting.make_curves          # per-env curves + figures/summary_table.md
-python -m plotting.make_readme_figures  # the two figures embedded above
+python -m plotting.make_readme_figures  # the five figures embedded above
 python recompute_normalized.py          # re-derive return_normalized from return_raw
 ```
 
@@ -181,8 +212,10 @@ rlpd/
   stubs.py          MockBuffer, StubAgent (wiring tests)
   networks.py       Actor, EnsembleCritic
   sac.py            RLPD/SAC agent
+  iql.py            IQL agent (offline pretrain + online finetune)
   replay_buffer.py  online buffer + symmetric sampler
   dataset.py        Minari → offline buffer
+  settings.py       per-setting/env profiles + ablation registry
   envs.py           env creation + wrappers
   evaluate.py       eval loop
 train.py            training loop (wires the interfaces)
@@ -193,9 +226,10 @@ setup.ps1           environment bootstrap
 check_setup.py      pipeline verification
 budget.py           compute-budget accounting
 recompute_normalized.py   re-derive return_normalized from return_raw (no re-training)
+wandb_backfill_v5.py      push v5-normalized curves onto existing W&B runs
 plotting/
   make_curves.py            per-env curves + figures/summary_table.md
-  make_readme_figures.py    the two figures embedded in this README
+  make_readme_figures.py    the figures embedded in this README
 results/            per-run eval CSVs (+ *.DIVERGED.txt notes)
 ```
 
@@ -208,8 +242,9 @@ results/            per-run eval CSVs (+ *.DIVERGED.txt notes)
 - [x] Baselines — SAC-from-demos (SACfD) · IQL + fine-tuning
 - [x] Offline data-quality sweep — simple / medium / expert
 - [x] Minari v5 normalization (replacing the D4RL constants)
-- [ ] **Humanoid-v5** to the full budget on all 3 seeds — currently ~5 normalized at ~1M steps
-- [ ] Component ablations — symmetric ratio · LayerNorm · ensemble size · UTD
+- [x] **Humanoid-v5** — 3 seeds at 1M (RLPD 13 · IQL 70 · SACfD diverged on 2/3)
+- [x] Component ablations — symmetric ratio · LayerNorm · ensemble size · UTD (Humanoid, seed 0)
+- [ ] Confirm the online-only (ratio 1) Humanoid result on seeds 1–2
 - [ ] Expert-dataset runs for seeds 1–2 (stopped at 57.5k; seed 0 only at the full horizon)
 - [ ] HumanoidStandup
 
