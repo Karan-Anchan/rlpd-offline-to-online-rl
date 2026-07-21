@@ -13,7 +13,7 @@ import pytest
 import torch
 
 from rlpd.interfaces import BATCH_KEYS, check_batch
-from rlpd.replay_buffer import ReplayBuffer, symmetric_sample
+from rlpd.replay_buffer import ReplayBuffer, symmetric_sample_many
 
 OBS_DIM, ACT_DIM = 11, 3  # Hopper-v5
 RUN_SLOW = os.environ.get("RLPD_RUN_SLOW") == "1"
@@ -59,7 +59,7 @@ def test_symmetric_sample_ratio_and_contract(ratio, n_online):
     offline = ReplayBuffer(500, OBS_DIM, ACT_DIM, "cpu")
     _fill(online, 500)
     _fill(offline, 500)
-    batch = symmetric_sample(online, offline, 256, ratio=ratio)
+    batch = symmetric_sample_many(online, offline, 256, 1, ratio=ratio)[0]
     check_batch(batch, OBS_DIM, ACT_DIM)
     assert batch["obs"].shape[0] == 256
     # online rows carry small values (i<500 reused); we just assert the split count
@@ -74,12 +74,13 @@ def test_ring_buffer_wraps_and_caps_size():
 
 
 def test_dataset_registry():
-    from rlpd.dataset import DATASET_IDS, dataset_id_for_env
+    from rlpd.dataset import dataset_id_for_env
 
     # reproduction tasks + the humanoid extension are all registered
-    assert {"Hopper-v5", "HalfCheetah-v5", "Walker2d-v5", "Humanoid-v5"} <= set(DATASET_IDS)
+    for env in ("Hopper-v5", "HalfCheetah-v5", "Walker2d-v5", "Humanoid-v5"):
+        assert dataset_id_for_env(env).endswith("/expert-v0")
     assert dataset_id_for_env("Walker2d-v5") == "mujoco/walker2d/expert-v0"
-    assert dataset_id_for_env("Humanoid-v5") == "mujoco/humanoid/expert-v0"
+    assert dataset_id_for_env("Humanoid-v5", "medium") == "mujoco/humanoid/medium-v0"
     with pytest.raises(KeyError):
         dataset_id_for_env("Ant-v5")
 

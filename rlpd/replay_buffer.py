@@ -74,20 +74,6 @@ class ReplayBuffer:
         return batch
 
 
-def symmetric_sample(
-    online: ReplayBuffer, offline: ReplayBuffer, batch_size: int, ratio: float = 0.5
-) -> Batch:
-    """Batch of `ratio` online rows + the rest offline (ratio=0.5 is the 50/50 split)."""
-    n_online = round(batch_size * ratio)
-    online_part = online.sample(n_online)
-    offline_part = offline.sample(batch_size - n_online)
-
-    batch: Batch = {}
-    for name in FIELDS:
-        batch[name] = torch.cat([online_part[name], offline_part[name]], dim=0)
-    return batch
-
-
 def combined_sample_many(
     online: ReplayBuffer, offline: ReplayBuffer, batch_size: int, count: int
 ) -> list[Batch]:
