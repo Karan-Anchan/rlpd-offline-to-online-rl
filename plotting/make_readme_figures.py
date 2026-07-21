@@ -1,13 +1,15 @@
-"""Build the two figures embedded in README.md from results/*.eval.csv.
+"""Build the figures embedded in README.md from results/*.eval.csv.
 
     python -m plotting.make_readme_figures
 
-Writes assets/returns.png (normalized return, RLPD vs baselines) and assets/mean_q.png
-(critic value estimates, log scale). Both are 1x3 panels over the locomotion tasks on the
-medium-quality offline datasets, shading +/- std across seeds.
+Writes to assets/:
+  returns.png    normalized return, RLPD vs baselines, locomotion medium datasets
+  mean_q.png     critic value estimates (log), same runs
+  quality.png    RLPD across simple / medium / expert offline data
+  humanoid.png   RLPD vs baselines on Humanoid (return + critic)
+  ablations.png  RLPD Humanoid ablations, one component off at a time (return + critic)
 
-These used to be produced ad hoc, so the README drifted out of sync with the data whenever
-normalization changed. Regenerate them alongside `python -m plotting.make_curves`.
+All aggregate mean +/- std across seeds. Regenerate whenever normalization or the data changes.
 """
 
 from __future__ import annotations
@@ -19,19 +21,25 @@ import matplotlib
 
 matplotlib.use("Agg")  # headless: write files, never open a window
 import matplotlib.pyplot as plt
+import pandas as pd
 
 from plotting.make_curves import RESULTS_DIR, load_runs
 
 ASSETS_DIR = Path("assets")
 ENVS = ["Hopper", "Walker2d", "HalfCheetah"]
-QUALITY = "medium"
 
-# One colour per method, held constant across both figures.
-METHODS = {
-    "RLPD": "#3b82f6",
-    "IQL": "#f59e0b",
-    "SACfD": "#ef4444",
+METHODS = {"RLPD": "#3b82f6", "IQL": "#f59e0b", "SACfD": "#ef4444"}
+QUALITIES = {"simple": "#c7d2fe", "medium": "#6366f1", "expert": "#312e81"}
+# Humanoid ablations: the reference first, then one component changed each.
+ABLATIONS = {
+    "RLPD": ("RLPD (reference)", "#111827"),
+    "ablation-ratio1": ("online-only (ratio 1)", "#3b82f6"),
+    "ablation-ensemble2": ("ensemble 2", "#10b981"),
+    "ablation-utd1": ("UTD 1", "#f59e0b"),
+    "ablation-ratio0": ("offline-only (ratio 0)", "#8b5cf6"),
+    "ablation-no-layernorm": ("no LayerNorm", "#ef4444"),
 }
+ABLATION_BUDGET = 500_000
 
 
 def _style(ax: plt.Axes) -> None:
@@ -44,84 +52,148 @@ def _style(ax: plt.Axes) -> None:
     ax.tick_params(colors="#4b5563", labelsize=9)
 
 
-def _panels(title: str) -> tuple[plt.Figure, list[plt.Axes]]:
-    fig, axes = plt.subplots(1, len(ENVS), figsize=(13, 3.6), sharex=True)
-    fig.suptitle(title, fontsize=11, color="#374151", y=1.02)
-    return fig, list(axes)
-
-
-def _series(agg, env: str, setting: str):
-    """Mean/std curve for one (env, setting) on the medium datasets, or None if absent."""
-    s = agg[(agg["env"] == env) & (agg["setting"] == setting) & (agg["quality"] == QUALITY)]
-    return s.sort_values("env_step") if not s.empty else None
-
-
-def _aggregate(df, metric: str):
+def _curve(df: pd.DataFrame, metric: str) -> pd.DataFrame:
+    """Mean/std of `metric` over seeds at each env_step for an already-filtered frame."""
     agg = (
         df.dropna(subset=[metric])
-        .groupby(["env", "setting", "quality", "env_step"])[metric]
-        .agg(["mean", "std", "count"])
+        .groupby("env_step")[metric]
+        .agg(["mean", "std"])
         .reset_index()
+        .sort_values("env_step")
     )
     agg["std"] = agg["std"].fillna(0.0)
     return agg
 
 
-def returns_figure(df, outdir: Path) -> Path:
-    agg = _aggregate(df, "return_normalized")
-    fig, axes = _panels(
-        "Normalized return on the medium offline datasets — mean ± std over 3 seeds"
-    )
-    for ax, env in zip(axes, ENVS):
-        ax.axhline(100, color="#6b7280", linestyle="--", linewidth=1)
-        ax.text(0.015, 101, "Minari v5 expert", fontsize=7.5, color="#6b7280",
-                transform=ax.get_yaxis_transform())
-        for setting, colour in METHODS.items():
-            s = _series(agg, env, setting)
-            if s is None:
-                continue
-            ax.plot(s["env_step"], s["mean"], color=colour, linewidth=1.8, label=setting)
-            ax.fill_between(s["env_step"], s["mean"] - s["std"], s["mean"] + s["std"],
-                            color=colour, alpha=0.15, linewidth=0)
-        ax.set_title(f"{env}-v5", fontsize=10, color="#111827")
-        ax.set_xlabel("environment steps", fontsize=9)
-        ax.set_ylim(bottom=0)
-        _style(ax)
-    axes[0].set_ylabel("normalized return", fontsize=9)
-    # lower right: the expert-line label owns the top-left corner
-    axes[0].legend(frameon=False, fontsize=9, loc="lower right")
+def _plot(ax: plt.Axes, df: pd.DataFrame, metric: str, colour: str, label: str) -> None:
+    c = _curve(df, metric)
+    if c.empty:
+        return
+    ax.plot(c["env_step"], c["mean"], color=colour, linewidth=1.8, label=label)
+    ax.fill_between(c["env_step"], c["mean"] - c["std"], c["mean"] + c["std"],
+                    color=colour, alpha=0.15, linewidth=0)
+
+
+def _save(fig: plt.Figure, outdir: Path, name: str) -> Path:
     outdir.mkdir(parents=True, exist_ok=True)
-    path = outdir / "returns.png"
+    path = outdir / name
     fig.tight_layout()
     fig.savefig(path, dpi=160, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     return path
 
 
-def mean_q_figure(df, outdir: Path) -> Path:
-    agg = _aggregate(df, "mean_q")
-    fig, axes = _panels(
-        "Critic value estimates (log scale) — RLPD stays bounded; SACfD blows up on Walker2d"
-    )
+def returns_figure(df: pd.DataFrame, outdir: Path) -> Path:
+    med = df[df["quality"] == "medium"]
+    fig, axes = plt.subplots(1, 3, figsize=(13, 3.6), sharex=True)
+    fig.suptitle("Normalized return on the medium offline datasets — mean ± std over 3 seeds",
+                 fontsize=11, color="#374151", y=1.02)
+    for ax, env in zip(axes, ENVS):
+        ax.axhline(100, color="#6b7280", linestyle="--", linewidth=1)
+        ax.text(0.015, 101, "Minari v5 expert", fontsize=7.5, color="#6b7280",
+                transform=ax.get_yaxis_transform())
+        for setting, colour in METHODS.items():
+            _plot(ax, med[(med["env"] == env) & (med["setting"] == setting)],
+                  "return_normalized", colour, setting)
+        ax.set_title(f"{env}-v5", fontsize=10, color="#111827")
+        ax.set_xlabel("environment steps", fontsize=9)
+        ax.set_ylim(bottom=0)
+        _style(ax)
+    axes[0].set_ylabel("normalized return", fontsize=9)
+    axes[0].legend(frameon=False, fontsize=9, loc="lower right")
+    return _save(fig, outdir, "returns.png")
+
+
+def mean_q_figure(df: pd.DataFrame, outdir: Path) -> Path:
+    med = df[df["quality"] == "medium"]
+    fig, axes = plt.subplots(1, 3, figsize=(13, 3.6), sharex=True)
+    fig.suptitle("Critic value estimates (log scale) — RLPD stays bounded; SACfD blows up on Walker2d",
+                 fontsize=11, color="#374151", y=1.02)
     for ax, env in zip(axes, ENVS):
         for setting, colour in METHODS.items():
-            s = _series(agg, env, setting)
-            if s is None:
-                continue
-            ax.plot(s["env_step"], s["mean"].clip(lower=1e-1), color=colour,
-                    linewidth=1.8, label=setting)
+            c = _curve(med[(med["env"] == env) & (med["setting"] == setting)], "mean_q")
+            if not c.empty:
+                ax.plot(c["env_step"], c["mean"].clip(lower=1e-1), color=colour,
+                        linewidth=1.8, label=setting)
         ax.set_yscale("log")
         ax.set_title(f"{env}-v5", fontsize=10, color="#111827")
         ax.set_xlabel("environment steps", fontsize=9)
         _style(ax)
     axes[0].set_ylabel("mean Q", fontsize=9)
     axes[0].legend(frameon=False, fontsize=9, loc="lower right")
-    outdir.mkdir(parents=True, exist_ok=True)
-    path = outdir / "mean_q.png"
-    fig.tight_layout()
-    fig.savefig(path, dpi=160, bbox_inches="tight", facecolor="white")
-    plt.close(fig)
-    return path
+    return _save(fig, outdir, "mean_q.png")
+
+
+def quality_figure(df: pd.DataFrame, outdir: Path) -> Path:
+    rlpd = df[df["setting"] == "RLPD"]
+    fig, axes = plt.subplots(1, 3, figsize=(13, 3.6), sharex=True)
+    fig.suptitle("RLPD vs. offline-data quality — better prior data → better online policy",
+                 fontsize=11, color="#374151", y=1.02)
+    for ax, env in zip(axes, ENVS):
+        ax.axhline(100, color="#6b7280", linestyle="--", linewidth=1)
+        for quality, colour in QUALITIES.items():
+            _plot(ax, rlpd[(rlpd["env"] == env) & (rlpd["quality"] == quality)],
+                  "return_normalized", colour, quality)
+        ax.set_title(f"{env}-v5", fontsize=10, color="#111827")
+        ax.set_xlabel("environment steps", fontsize=9)
+        ax.set_ylim(bottom=0)
+        _style(ax)
+    axes[0].set_ylabel("normalized return", fontsize=9)
+    axes[0].legend(frameon=False, fontsize=9, loc="lower right", title="offline data")
+    return _save(fig, outdir, "quality.png")
+
+
+def humanoid_figure(df: pd.DataFrame, outdir: Path) -> Path:
+    h = df[(df["env"] == "Humanoid") & (df["quality"] == "medium")]
+    fig, (ax_r, ax_q) = plt.subplots(1, 2, figsize=(11, 3.8))
+    fig.suptitle("Humanoid-v5 (beyond the paper) — RLPD holds; SACfD's critic diverges",
+                 fontsize=11, color="#374151", y=1.02)
+    for setting, colour in METHODS.items():
+        sub = h[h["setting"] == setting]
+        _plot(ax_r, sub, "return_normalized", colour, setting)
+        cq = _curve(sub, "mean_q")
+        if not cq.empty:
+            ax_q.plot(cq["env_step"], cq["mean"].clip(lower=1e-1), color=colour,
+                      linewidth=1.8, label=setting)
+    ax_r.set_title("normalized return", fontsize=10, color="#111827")
+    ax_r.set_ylabel("normalized return", fontsize=9)
+    ax_r.set_ylim(bottom=0)
+    ax_q.set_title("mean Q (log scale)", fontsize=10, color="#111827")
+    ax_q.set_ylabel("mean Q", fontsize=9)
+    ax_q.set_yscale("log")
+    for ax in (ax_r, ax_q):
+        ax.set_xlabel("environment steps", fontsize=9)
+        _style(ax)
+    ax_r.legend(frameon=False, fontsize=9, loc="upper left")
+    return _save(fig, outdir, "humanoid.png")
+
+
+def ablations_figure(df: pd.DataFrame, outdir: Path) -> Path:
+    h = df[(df["env"] == "Humanoid") & (df["quality"] == "medium")]
+    fig, (ax_r, ax_q) = plt.subplots(1, 2, figsize=(11, 3.8))
+    fig.suptitle("Humanoid RLPD ablations (seed 0, 500k) — one component changed at a time",
+                 fontsize=11, color="#374151", y=1.02)
+    for setting, (label, colour) in ABLATIONS.items():
+        if setting == "RLPD":  # matched-seed reference, truncated to the ablation budget
+            sub = h[(h["setting"] == "RLPD") & (h["seed"] == 0) & (h["env_step"] <= ABLATION_BUDGET)]
+        else:
+            sub = h[h["setting"] == setting]
+        _plot(ax_r, sub, "return_normalized", colour, label)
+        cq = _curve(sub, "mean_q")
+        if not cq.empty:
+            ax_q.plot(cq["env_step"], cq["mean"].clip(lower=1e-1), color=colour,
+                      linewidth=1.8, label=label)
+    ax_r.set_title("normalized return", fontsize=10, color="#111827")
+    ax_r.set_ylabel("normalized return", fontsize=9)
+    ax_r.set_ylim(bottom=0)
+    ax_q.set_title("mean Q (log scale) — no-LayerNorm explodes", fontsize=10, color="#111827")
+    ax_q.set_ylabel("mean Q", fontsize=9)
+    ax_q.set_yscale("log")
+    for ax in (ax_r, ax_q):
+        ax.set_xlabel("environment steps", fontsize=9)
+        _style(ax)
+    ax_r.legend(frameon=False, fontsize=8, loc="upper left")
+    return _save(fig, outdir, "ablations.png")
 
 
 def main() -> None:
@@ -135,8 +207,9 @@ def main() -> None:
         print(f"no eval CSVs in {args.results}/ yet — run a training job first.")
         return
 
-    for path in (returns_figure(df, args.assets), mean_q_figure(df, args.assets)):
-        print(f"wrote {path}")
+    figures = (returns_figure, mean_q_figure, quality_figure, humanoid_figure, ablations_figure)
+    for fn in figures:
+        print(f"wrote {fn(df, args.assets)}")
 
 
 if __name__ == "__main__":
