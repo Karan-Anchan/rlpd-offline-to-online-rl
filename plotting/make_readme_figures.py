@@ -171,13 +171,23 @@ def humanoid_figure(df: pd.DataFrame, outdir: Path) -> Path:
 def ablations_figure(df: pd.DataFrame, outdir: Path) -> Path:
     h = df[(df["env"] == "Humanoid") & (df["quality"] == "medium")]
     fig, (ax_r, ax_q) = plt.subplots(1, 2, figsize=(11, 3.8))
-    fig.suptitle("Humanoid RLPD ablations (seed 0, 500k) — one component changed at a time",
+    fig.suptitle("Humanoid RLPD ablations (500k) — online-only beats RLPD even with expert data",
                  fontsize=11, color="#374151", y=1.02)
+    # base RLPD (medium, seed 0) reference + expert-data RLPD, both truncated to the ablation budget
+    refs = [("RLPD (medium data)", "#111827", h[(h["setting"] == "RLPD") & (h["seed"] == 0)]),
+            ("RLPD (expert data)", "#9ca3af",
+             df[(df["env"] == "Humanoid") & (df["setting"] == "RLPD") & (df["quality"] == "expert")
+                & (df["seed"] == 0)])]
+    for label, colour, sub in refs:
+        sub = sub[sub["env_step"] <= ABLATION_BUDGET]
+        _plot(ax_r, sub, "return_normalized", colour, label)
+        cq = _curve(sub, "mean_q")
+        if not cq.empty:
+            ax_q.plot(cq["env_step"], cq["mean"].clip(lower=1e-1), color=colour, linewidth=1.8)
     for setting, (label, colour) in ABLATIONS.items():
-        if setting == "RLPD":  # matched-seed reference, truncated to the ablation budget
-            sub = h[(h["setting"] == "RLPD") & (h["seed"] == 0) & (h["env_step"] <= ABLATION_BUDGET)]
-        else:
-            sub = h[h["setting"] == setting]
+        if setting == "RLPD":
+            continue  # handled by refs above
+        sub = h[h["setting"] == setting]
         _plot(ax_r, sub, "return_normalized", colour, label)
         cq = _curve(sub, "mean_q")
         if not cq.empty:

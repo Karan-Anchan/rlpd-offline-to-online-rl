@@ -138,14 +138,16 @@ RLPD reference at the matched step (last-5-eval normalized = 7.2).
 | offline-only (ratio 0) | −7.9 | online interaction is essential; medium data alone ≈ random |
 | UTD 1 | −4.0 | high UTD (20) buys sample efficiency |
 | ensemble 2 | −2.6 | the 10-critic ensemble helps value estimation |
-| online-only (ratio 1) | **+15.9** | **beats the 50/50 mix** — see below |
+| online-only (ratio 1) | **+20 (3 seeds)** | **beats the mix, even vs RLPD-expert** — see below |
 
 Three of four confirm the paper's design (LayerNorm ≫ UTD > ensemble; offline-only fails). The
-surprise is **online-only**: dropping the offline data entirely — leaving high-UTD SAC + LayerNorm +
-ensemble, a REDQ-like online learner — *beats* the 50/50 RLPD mix on Humanoid-medium (raw return
-2,263 vs 857 at 500k). The medium offline data appears to drag the policy toward medium behaviour
-rather than help. **Single seed**, so the +15.9 is the one result here that still needs 2–3 seeds
-before it becomes a claim.
+surprise is **online-only**, now confirmed across 3 seeds (normalized 23 / 45 / 16 → **28 ± 15**):
+dropping the offline data entirely — leaving high-UTD SAC + LayerNorm + ensemble, a REDQ-like online
+learner — beats the 50/50 RLPD mix by a wide margin. To rule out RLPD simply being handicapped by
+*medium* data, we ran RLPD on the **expert** dataset to the full 1M — it stayed flat at ~4 normalized,
+no better than medium (~8) and ~7× below online-only. So on Humanoid the offline data does not help
+RLPD at any quality; pure online learning wins, most likely because the offline distribution (medium
+or expert) is too far from what the online policy actually visits.
 
 ## Method
 
@@ -244,7 +246,7 @@ results/            per-run eval CSVs (+ *.DIVERGED.txt notes)
 - [x] Minari v5 normalization (replacing the D4RL constants)
 - [x] **Humanoid-v5** — 3 seeds at 1M (RLPD 13 · IQL 70 · SACfD diverged on 2/3)
 - [x] Component ablations — symmetric ratio · LayerNorm · ensemble size · UTD (Humanoid, seed 0)
-- [ ] Confirm the online-only (ratio 1) Humanoid result on seeds 1–2
+- [x] Confirmed online-only (ratio 1) on 3 seeds + a full RLPD-expert Humanoid comparison
 - [ ] Expert-dataset runs for seeds 1–2 (stopped at 57.5k; seed 0 only at the full horizon)
 - [ ] HumanoidStandup
 
